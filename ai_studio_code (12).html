@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣歷史百科：全史料終極完美版 (v14.2)</title>
+    
+    <!-- Leaflet CSS/JS (地圖功能) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --primary: #2c3e50; 
+            --secondary: #34495e;
+            --accent: #d35400; 
+            --highlight: #f1c40f;
+            --bg-light: #f8f9fa; 
+            --modal-bg: rgba(0, 0, 0, 0.85);
+            --btn-book: #27ae60; 
+            --text-main: #333;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "Microsoft JhengHei", "Heiti TC", sans-serif;
+            margin: 0;
+            background: var(--bg-light);
+        }
+
+        /* 容器與版面配置（依照版面配置程式的結構） */
+        .container {
+            display: flex;
+            flex-direction: row;
+            min-height: 100vh;
+        }
+
+        /* 側欄樣式：採用版面程式的結構 + 保留資料程式的視覺風格 */
+        .sidebar {
+            background: var(--primary);
+            color: #ecf0f1;
+            width: 260px;        /* 桌機及橫向模式下的側欄固定寬度 */
+            position: static;    /* 取消 fixed，確保在小螢幕直向時能隨內容順序排列 */
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .sidebar h1 {
+            font-size: 1.5em;
+            text-align: center;
+            padding: 1em;
+            background: #1a252f;
+            border-bottom: 1px solid #34495e;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .sidebar ul.nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sidebar ul.nav li {
+            border-bottom: 1px solid #34495e;
+        }
+        .sidebar ul.nav li a {
+            display: block;
+            padding: 0.75em 1em;
+            text-decoration: none;
+            color: #ecf0f1;
+            font-size: 0.95rem;
+            transition: 0.2s;
+        }
+        .sidebar ul.nav li a:hover {
+            background: var(--secondary);
+        }
+        .sidebar ul.nav li a.active {
+            background: var(--secondary);
+            color: var(--highlight);
+            font-weight: bold;
+        }
+
+        /* 主內容區（對應版面程式的 .main） */
+        .main {
+            flex: 1;
+            padding: 0;
+            overflow-y: auto;
+            position: relative;
+            scroll-behavior: smooth;
+            background: #ecf0f1;
+        }
+
+        /* 內頁容器與頁面區塊（沿用資料程式） */
+        .page-container {
+            padding: 30px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .page {
+            display: none;
+            animation: fadeIn 0.4s;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Layer 1: Timeline & Map Styles */
+        .section-title {
+            color: var(--primary);
+            border-bottom: 3px double #bdc3c7;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+        .section-desc {
+            color: #555;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .master-timeline {
+            position: relative;
+            max-width: 900px;
+            margin: 0 auto;
+            padding-left: 30px;
+        }
+        .master-timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #bdc3c7;
+            border-radius: 2px;
+        }
+        .mt-group-title {
+            font-size: 1.4rem;
+            color: var(--primary);
+            font-weight: bold;
+            margin: 40px 0 20px -35px;
+            background: #dfe6e9;
+            padding: 10px 20px;
+            border-radius: 50px;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border: 1px solid #bdc3c7;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .mt-event {
+            position: relative;
+            margin-bottom: 20px;
+            cursor: pointer;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+            border-left: 5px solid transparent;
+            transition: 0.2s;
+        }
+        .mt-event:hover {
+            transform: translateX(8px);
+            border-left-color: var(--accent);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        .mt-dot {
+            position: absolute;
+            left: -29px;
+            top: 24px;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border: 4px solid var(--primary);
+            border-radius: 50%;
+            z-index: 2;
+            transition: 0.2s;
+        }
+        .mt-event:hover .mt-dot {
+            border-color: var(--accent);
+            transform: scale(1.2);
+        }
+        
+        .mt-year {
+            font-weight: 800;
+            color: var(--accent);
+            margin-right: 15px;
+            font-size: 1.2rem;
+            font-family: 'Arial', sans-serif;
+        }
+        .mt-title {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #2d3436;
+        }
+        .mt-desc {
+            font-size: 0.95rem;
+            color: #7f8c8d;
+            margin-top: 8px;
+            display: block;
+        }
+        
+        .map-wrapper {
+            width: 100%;
+            height: 450px;
+            border-radius: 12px;
+            border: 4px solid white;
+            margin-bottom: 30px;
+            z-index: 1;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* Layer 2: 詳細事件模態視窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--modal-bg);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            backdrop-filter: blur(3px);
+        }
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 1000px;
+            height: 90vh;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            animation: slideUp 0.3s;
+        }
+        .modal-header {
+            background: var(--primary);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            border-bottom: 4px solid var(--highlight);
+        }
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            flex: 1;
+            background: #fdfdfd;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1.8fr 1.2fr;
+            gap: 30px;
+        }
+        .info-block {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            position: relative;
+            overflow: hidden;
+        }
+        .info-block::before {
+            content:'';
+            position: absolute;
+            top:0;
+            left:0;
+            width:4px;
+            height:100%;
+            background: #bdc3c7;
+        }
+        .info-block.cause::before { background: #3498db; }
+        .info-block.impact::before { background: #9b59b6; }
+        .info-block.figures::before { background: #2ecc71; }
+
+        .info-label {
+            font-weight: bold;
+            color: var(--primary);
+            display: block;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #f1f2f6;
+            padding-bottom: 8px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 子時間軸 */
+        .sub-timeline {
+            padding-left: 25px;
+            margin: 0;
+            list-style: none;
+        }
+        .sub-timeline li {
+            position: relative;
+            margin-bottom: 15px;
+            padding-left: 15px;
+            border-left: 2px solid #bdc3c7;
+        }
+        .sub-timeline li::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 0 1px #bdc3c7;
+        }
+        .st-time {
+            font-weight: bold;
+            color: #555;
+            font-size: 0.9rem;
+            display: block;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* 考點區塊 */
+        .exam-box {
+            background: #fff8e1;
+            border-left: 5px solid #ff9800;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .exam-box h4 {
+            margin: 0 0 12px 0;
+            color: #e65100;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .exam-list {
+            padding-left: 20px;
+            margin: 0;
+            color: #bf360c;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+        .exam-list li {
+            margin-bottom: 8px;
+        }
+
+        /* 人物 chip */
+        .figure-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #e0f7fa;
+            color: #006064;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            margin: 0 8px 8px 0;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid #b2ebf2;
+        }
+        .figure-chip:hover {
+            background: #4dd0e1;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+        }
+        .figure-chip::before {
+            content: '👤';
+            margin-right: 5px;
+            font-size: 0.8rem;
+        }
+
+        /* Layer 3: 課文統整按鈕與模態 */
+        .textbook-btn {
+            display: block;
+            width: 100%;
+            background: var(--btn-book);
+            color: white;
+            text-align: center;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .textbook-btn:hover {
+            background: #219150;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+        
+        .layer3-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .layer3-content {
+            background: white;
+            width: 800px;
+            max-height: 85vh;
+            border-radius: 10px;
+            padding: 40px 50px;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            border-top: 8px solid var(--btn-book);
+            animation: slideUp 0.3s;
+        }
+        .layer3-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 25px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 15px;
+            text-align: center;
+        }
+        .layer3-text {
+            font-size: 1.15rem;
+            line-height: 2;
+            color: #2c3e50;
+            text-align: justify;
+            white-space: pre-line;
+            font-family: "Microsoft JhengHei", serif;
+        }
+        .close-layer3 {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 2.5rem;
+            cursor: pointer;
+            color: #bdc3c7;
+            transition: 0.2s;
+        }
+        .close-layer3:hover {
+            color: #e74c3c;
+        }
+
+        /* 第三層：人物小傳卡片 */
+        .person-card {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            width: 420px;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+            z-index: 3500;
+            display: none;
+            border-top: 6px solid #3498db;
+            animation: popIn 0.3s;
+        }
+        .close-person {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            cursor: pointer;
+            font-size: 1.8rem;
+            color: #95a5a6;
+        }
+        .close-person:hover {
+            color: #e74c3c;
+        }
+
+        /* 對照表區塊 */
+        .comp-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .comp-table th {
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 1.1rem;
+            border-bottom: 4px solid var(--highlight);
+        }
+        .comp-table td {
+            padding: 14px 15px;
+            border-bottom: 1px solid #eee;
+            font-size: 1.05rem;
+            color: #34495e;
+        }
+        .comp-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .comp-table tr:hover {
+            background-color: #f0f3f4;
+        }
+        .col-year {
+            width: 12%;
+            font-weight: 800;
+            color: var(--accent);
+            font-family: 'Arial', sans-serif;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* 響應式調整：手機/平板橫向模式（保留版面配置程式邏輯） */
+        @media (max-width: 1024px) and (orientation: landscape) {
+            .container {
+                flex-direction: row;
+            }
+            .sidebar {
+                display: block;
+                width: 220px;
+                position: static;
+            }
+            .main {
+                margin-left: 0;
+            }
+        }
+
+        @media (max-width: 480px) and (orientation: landscape) {
+            .sidebar {
+                width: 180px;
+            }
+        }
+
+        /* 響應式調整：手機/平板直向模式（側欄變頂部水平選單） */
+        @media (max-width: 1024px) and (orientation: portrait) {
+            .container {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: static;
+            }
+            .sidebar h1 {
+                text-align: center;
+            }
+            .sidebar ul.nav {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-around;
+            }
+            .sidebar ul.nav li {
+                flex: 1 1 auto;
+                border-bottom: none;
+                border-right: 1px solid #34495e;
+            }
+            .sidebar ul.nav li:last-child {
+                border-right: none;
+            }
+            .sidebar ul.nav li a {
+                padding: 0.75em 0;
+                white-space: nowrap;
+                text-align: center;
+            }
+            .main {
+                width: 100%;
+                margin-left: 0;
+            }
+        }
+
+        /* 針對極窄直向螢幕，按鈕列允許橫向捲動而不換行 */
+        @media (max-width: 600px) and (orientation: portrait) {
+            .sidebar ul.nav {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+            .sidebar ul.nav li {
+                flex: 0 0 auto;
+            }
+        }
+
+        /* 其他小尺寸調整（不改動版面流向） */
+        @media (max-width: 768px) {
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+            .layer3-content {
+                width: 95%;
+                padding: 20px;
+            }
+            .modal-content {
+                height: auto;
+                max-height: 95vh;
+            }
+            .page-container {
+                padding: 20px;
+            }
+            .comp-table th,
+            .comp-table td {
+                font-size: 0.9rem;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 側欄：改用版面配置的結構 + 資料程式的選單文字 -->
+    <div class="sidebar">
+        <h1>🇹🇼 台灣歷史百科</h1>
+        <ul class="nav">
+            <li><a href="#" data-page="home" class="active">📜 全時序總覽 & 對照表</a></li>
+            <li><a href="#" data-page="pre">1. 🗿 史前時代</a></li>
+            <li><a href="#" data-page="dutch">2. 🚢 荷西與鄭氏時期</a></li>
+            <li><a href="#" data-page="qing_early">3. 🌾 清領前期 (消極)</a></li>
+            <li><a href="#" data-page="qing_late">4. 🚂 清領後期 (積極)</a></li>
+            <li><a href="#" data-page="jp">5. ⛩️ 日治時期</a></li>
+            <li><a href="#" data-page="roc">6. 🇹🇼 戰後民國時期</a></li>
+        </ul>
+    </div>
+
+    <!-- 主內容區：沿用資料程式的結構，但放在 .main 底下 -->
+    <div class="main">
+        <!-- Layer 1: Home -->
+        <div id="home" class="page active page-container">
+            <h1 style="text-align:center; color:var(--primary); margin-bottom: 40px;">📜 歷史長河：中外對照 & 事件總覽</h1>
+            
+            <div class="comp-section">
+                <h3 style="margin-top:0; color:var(--primary); border-left:5px solid var(--accent); padding-left:15px;">🌍 中外大事 vs 🇹🇼 台灣發展對照表</h3>
+                <table class="comp-table">
+                    <thead>
+                        <tr>
+                            <th class="col-year">年代</th>
+                            <th>世界與中國大事</th>
+                            <th>台灣歷史發展</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparison-body"></tbody>
+                </table>
+            </div>
+
+            <div class="section-title">全時序綜合年表</div>
+            <div id="master-timeline" class="master-timeline"></div>
+        </div>
+
+        <!-- 各時代頁面容器（內容由 JS render() 填入） -->
+        <div id="pre" class="page page-container"></div>
+        <div id="dutch" class="page page-container"></div>
+        <div id="qing_early" class="page page-container"></div>
+        <div id="qing_late" class="page page-container"></div>
+        <div id="jp" class="page page-container"></div>
+        <div id="roc" class="page page-container"></div>
+    </div>
+</div>
+
+<!-- Layer 2: 詳細事件模態視窗 -->
+<div class="modal-overlay" id="event-modal" onclick="closeEventModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 id="m-title" style="margin:0; font-size: 1.6rem;"></h2>
+            <span style="font-size:2.5rem; cursor:pointer; line-height: 0.8;" onclick="closeEventModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <p id="m-desc" style="font-size:1.2rem; line-height:1.6; color:#444; margin-bottom:25px; padding-bottom:20px; border-bottom:1px solid #eee; font-weight: 500;"></p>
+            
+            <div class="detail-grid">
+                <!-- 左欄 -->
+                <div>
+                    <div class="info-block cause">
+                        <span class="info-label">🤔 起因與背景 (Cause)</span>
+                        <p id="m-cause" style="margin:0; color:#555; font-size:1.05rem; line-height: 1.6;"></p>
+                    </div>
+                    <div class="info-block">
+                        <span class="info-label">⏱️ 詳細經過 (Timeline)</span>
+                        <ul id="m-subtimeline" class="sub-timeline"></ul>
+                    </div>
+                    <div class="info-block impact">
+                        <span class="info-label">🚀 影響與結果 (Impact)</span>
+                        <p id="m-impact" style="margin:0; color:#555; font-size:1.05rem; line-height: 1.6;"></p>
+                    </div>
+                </div>
+                
+                <!-- 右欄 -->
+                <div>
+                    <div class="info-block figures">
+                        <span class="info-label" style="color:#27ae60;">👥 關鍵人物 (點擊看小傳)</span>
+                        <div id="m-figures" style="display: flex; flex-wrap: wrap;"></div>
+                    </div>
+                    
+                    <div class="exam-box">
+                        <h4>🔥 私中/會考 考點 & 陷阱</h4>
+                        <ul id="m-exam-list" class="exam-list"></ul>
+                    </div>
+
+                    <div style="margin-top: 30px;">
+                        <button class="textbook-btn" onclick="openTextbookModal()">
+                            <span>📖</span> 閱讀三版課文統整內容 (完整學習)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Layer 3: 課文統整模態視窗 -->
+<div class="layer3-overlay" id="textbook-modal" onclick="closeTextbookModal()">
+    <div class="layer3-content" onclick="event.stopPropagation()">
+        <span class="close-layer3" onclick="closeTextbookModal()">&times;</span>
+        <div id="tb-title" class="layer3-title"></div>
+        <div id="tb-content" class="layer3-text"></div>
+    </div>
+</div>
+
+<!-- 第三層：人物小傳卡片 -->
+<div class="person-card" id="person-modal" onclick="event.stopPropagation()">
+    <span class="close-person" onclick="closePersonModal()">&times;</span>
+    <h3 id="p-name" style="margin:0 0 5px 0; color:var(--primary); font-size:1.8rem;"></h3>
+    <div id="p-role" style="background:#eee; display:inline-block; padding:4px 12px; border-radius:4px; font-size:0.95rem; color:#555; margin-bottom:20px; font-weight: bold;"></div>
+    <p id="p-desc" style="line-height:1.7; color:#333; font-size:1.1rem; margin-bottom: 20px;"></p>
+    <div style="padding-top:15px; border-top:1px dashed #ccc; color:#d35400; background: #fff3e0; padding: 10px; border-radius: 6px;">
+        <strong>⚠️ 考試關鍵字：</strong> <span id="p-exam"></span>
+    </div>
+</div>
+
+<script>
+    let currentEvent = null;
+
+    // 1. 中外對照表資料
+    const comparisonData = [
+        {y:"約5萬年前", w:"舊石器時代晚期", t:"長濱文化 (舊石器，用火無農)"},
+        {y:"約7000年前", w:"黃河、長江流域發展農業", t:"大坌坑文化 (新石器早期，農業出現)"},
+        {y:"1624年", w:"大航海時代 (荷蘭、西班牙)", t:"荷蘭佔領台南 (建立熱蘭遮城)，台灣進入信史"},
+        {y:"1662年", w:"清朝康熙帝即位", t:"鄭成功驅逐荷蘭，建立漢人政權"},
+        {y:"1684年", w:"清朝平定三藩之亂後", t:"施琅攻台，清廷納入版圖，設台灣府 (隸屬福建)"},
+        {y:"1860年", w:"英法聯軍之役", t:"開港通商 (淡水、基隆等)，茶、糖、樟腦出口"},
+        {y:"1895年", w:"中日甲午戰爭", t:"馬關條約割讓台灣，日治時期開始"},
+        {y:"1911年", w:"辛亥革命，中華民國成立", t:"日治中期 (武裝抗日轉為政治社會運動)"},
+        {y:"1945年", w:"第二次世界大戰結束", t:"日本投降，中華民國政府接收台灣"},
+        {y:"1949年", w:"中華人民共和國成立", t:"中央政府遷台，實施戒嚴"},
+        {y:"1979年", w:"美國與中國建交", t:"中美斷交，美麗島事件爆發"},
+        {y:"1987年", w:"冷戰末期", t:"宣佈解除戒嚴，開放黨禁報禁"},
+        {y:"2002年", w:"全球化趨勢", t:"台灣以台澎金馬名義加入WTO"}
+    ];
+
+    // 2. 人物資料庫
+    const personDB = {
+        "長濱人":{role:"舊石器時代人類",desc:"生活在台東八仙洞的海蝕洞中，已知用火，使用打製石器，不知農耕，採集漁獵維生。",exam:"八仙洞、打製石器、無農業。"},
+        "南關里人":{role:"新石器早期人類",desc:"在南科園區發現，出土台灣最早的稻米與小米化石，也有犬隻遺骸。",exam:"台灣最早農業證據、南科遺址。"},
+        "卑南人":{role:"新石器晚期部落居民",desc:"活動於台東卑南一帶，遺留大量石板棺與精美玉器，顯示已有階層與宗教儀式。",exam:"石板棺、人獸形玉玦、新石器晚期。"},
+        "凱達格蘭族":{role:"平埔族群之一",desc:"分布於台北盆地與基隆一帶，常被認為十三行文化的後裔。",exam:"十三行遺址、人面陶罐、北台灣平埔族。"},
+        "濱田彌兵衛":{role:"日本江戶時代商人",desc:"因不滿荷蘭東印度公司徵收重稅，挾持荷蘭長官奴易茲，史稱濱田彌兵衛事件。",exam:"台日荷三角貿易衝突。"},
+        "甘治士":{role:"荷蘭傳教士",desc:"在台南新港社傳教，創立新港文書(羅馬拼音)，教導原住民讀寫。",exam:"羅馬拼音、番仔契、新港文。"},
+        "鄭成功":{role:"延平郡王",desc:"南明將領，為反清復明攻打台灣，驅逐荷蘭人，建立台灣第一個漢人政權。",exam:"國姓爺、登陸鹿耳門、圍攻熱蘭遮城。"},
+        "鄭經":{role:"鄭氏政權君主",desc:"鄭成功之子，承續父業治台，在陳永華輔佐下發展文教與軍屯。",exam:"承天府、全台首學、軍屯政策。"},
+        "揆一":{role:"荷蘭駐台末代長官",desc:"死守熱蘭遮城9個月，最終向鄭成功投降，結束荷蘭在台38年統治。",exam:"著有《被遺誤的台灣》。"},
+        "陳永華":{role:"東寧總制 (鄭氏諸葛)",desc:"輔佐鄭經，建立全台首座孔廟，推動科舉與軍屯，建議興建柵欄防衛。",exam:"全台首學、鄭氏諸葛、永華宮。"},
+        "施琅":{role:"清朝靖海侯",desc:"原為鄭芝龍部下，後降清。率軍在澎湖海戰擊敗鄭軍，建議康熙將台灣納入版圖。",exam:"攻台將領、渡台禁令建議者。"},
+        "朱一貴":{role:"鴨母王 (民變領袖)",desc:"養鴨維生，因不滿官員壓榨起義，攻陷府城，自稱中興王。清代最早大規模民變。",exam:"內門起事、閩粵合作後分裂。"},
+        "林爽文":{role:"天地會領袖 (民變領袖)",desc:"清代規模最大、歷時最久的民變之一(乾隆年間)。福康安來台平定後，諸羅改名嘉義。",exam:"天地會、福康安平定、諸羅改嘉義。"},
+        "福康安":{role:"清朝名將",desc:"乾隆年間名將，奉命來台平定林爽文事件。",exam:"林爽文事件平亂、諸羅改嘉義。"},
+        "戴潮春":{role:"戴萬生 (民變領袖)",desc:"清代歷時最久(三年)的民變(咸豐-同治年間)，勢力集中在中部。",exam:"清代三大民變之一、影響霧峰林家。"},
+        "施世榜":{role:"清代墾戶",desc:"籌資興建八堡圳，引濁水溪灌溉彰化平原，使彰化成為米倉。",exam:"八堡圳、跑水節、林先生傳說。"},
+        "郭錫瑠":{role:"清代墾戶",desc:"變賣家產興建瑠公圳，引新店溪水灌溉台北盆地。",exam:"瑠公圳、開發台北。"},
+        "曹謹":{role:"鳳山知縣",desc:"官方主導興建曹公圳，引高屏溪水灌溉高雄地區，改善旱災。",exam:"曹公圳、唯一官方主導大型水利。"},
+        "馬偕":{role:"加拿大長老教會傳教士",desc:"以「拔牙」傳教聞名，在北台灣設立教堂、醫院(滬尾醫館)與學校(牛津學堂)。",exam:"北台傳教、牛津學堂、淡水女學堂。"},
+        "沈葆楨":{role:"欽差大臣",desc:"因牡丹社事件來台，推動「開山撫番」，廢除渡台禁令，增設恆春縣。",exam:"牡丹社事件、億載金城、延平郡王祠。"},
+        "李仙得":{role:"美國駐廈門領事",desc:"羅發號事件後來台，與排灣族頭目卓杞篤簽訂「南岬之盟」。",exam:"羅發號事件、南岬之盟。"},
+        "卓杞篤":{role:"排灣族頭目",desc:"瑯嶠十八社大頭目，具有外交智慧，與李仙得談判並簽署盟約。",exam:"南岬之盟、斯卡羅。"},
+        "劉銘傳":{role:"台灣首任巡撫",desc:"中法戰爭後治台，推動現代化(鐵路、電報、郵政)，設台北府。",exam:"台灣鐵路之父(基隆-新竹)、中法戰爭。"},
+        "後藤新平":{role:"民政長官",desc:"兒玉源太郎的左右手，推動土地調查、戶口普查、舊慣調查，奠定日治基礎。",exam:"生物學原理、糖/樟腦專賣、六三法執行者。"},
+        "八田與一":{role:"水利工程師",desc:"設計並監造嘉南大圳與烏山頭水庫，使嘉南平原成為台灣穀倉。",exam:"嘉南大圳、烏山頭水庫、三年輪作。"},
+        "磯永吉":{role:"農業專家",desc:"在台大農場培育出「蓬萊米」，大幅提升台灣稻米產量與品質。",exam:"蓬萊米之父、台中65號。"},
+        "蔣渭水":{role:"社會運動家",desc:"成立台灣文化協會，發表〈臨床講義〉，創立台灣民眾黨，推動民智。",exam:"台灣孫中山、台灣民報、大安醫院。"},
+        "莫那魯道":{role:"賽德克族馬赫坡頭目",desc:"因不滿日本長期勞役與壓迫，率眾發動霧社事件，最後飲彈自盡。",exam:"霧社事件、抗日烈士。"},
+        "蔣經國":{role:"中華民國總統",desc:"推動十大建設，晚年宣佈解嚴、開放黨禁報禁，開放大陸探親。",exam:"十大建設、解嚴、勤政愛民。"},
+        "李登輝":{role:"中華民國總統",desc:"首位民選總統，推動修憲、終止動員戡亂，被稱為「民主先生」。",exam:"寧靜革命、兩國論、首位直選總統。"},
+        "陳儀":{role:"行政長官",desc:"戰後代表盟軍接收台灣，因施政不當導致二二八事件爆發。",exam:"行政長官公署、二二八事件。"},
+        "陳誠":{role:"台灣省主席/副總統",desc:"推動土地改革(三七五減租等)，發行新台幣，穩定戰後經濟。",exam:"土地改革、新台幣。"},
+        "唐景崧":{role:"台灣民主國總統",desc:"原為台灣巡撫，乙未戰爭時被推舉為總統，但日軍登陸後旋即潛逃。",exam:"台灣民主國、藍地黃虎旗。"},
+        "丘逢甲":{role:"詩人與義軍領袖",desc:"乙未戰爭期間領導義勇軍抗日，同時以憂國詩作聞名。",exam:"乙未戰爭、〈春愁〉、台灣民主國抗日。"},
+        "余清芳":{role:"抗日領袖",desc:"結合宗教力量(西來庵)發動噍吧哖事件，是規模最大的武裝抗日。",exam:"西來庵事件、最後一次大規模武裝抗日。"},
+        "林獻堂":{role:"霧峰林家領袖",desc:"領導台灣議會設置請願運動，支持台灣文化協會，堅持非武裝抗爭。",exam:"台灣議會之父、環球遊記。"},
+        "孤拔":{role:"法國將領",desc:"中法戰爭時率艦隊攻打基隆、淡水，後佔領澎湖，病逝於澎湖。",exam:"中法戰爭、死於澎湖。"},
+        "南島語族":{role:"史前/原住民祖先",desc:"台灣被視為南島語族的發源地之一，善於航海，分佈於太平洋島嶼。",exam:"大坌坑文化、粗繩紋陶、擴散。"},
+        "奴易茲":{role:"荷蘭長官",desc:"拒絕日本貿易要求，導致濱田彌兵衛事件，後被引渡至日本監禁。",exam:"濱田彌兵衛事件。"},
+        "小林躋造":{role:"台灣總督",desc:"首位武官總督(恢復武官制後)，推行皇民化運動，喊出「南進基地化」。",exam:"皇民化、工業化、南進基地。"},
+        "施明德":{role:"民主鬥士",desc:"美麗島事件總指揮，長期因政治信仰入獄，人稱「台灣曼德拉」。",exam:"美麗島事件、軍法大審。"},
+        "呂秀蓮":{role:"前副總統",desc:"美麗島事件重要人物，致力於婦女運動，後成為首位女性副總統。",exam:"黨外運動、新女性主義。"},
+        "康熙皇帝":{role:"清朝皇帝",desc:"派施琅攻台，接受建議將台灣納入清朝版圖，設立一府三縣。",exam:"納入版圖、渡台禁令。"},
+        "郭懷一":{role:"荷治時期漢人領袖",desc:"因不滿荷蘭重稅與兵丁勒索，在赤崁起事，是荷治時期最大漢人抗爭。",exam:"郭懷一事件、以番制漢、普羅民遮城。"},
+        "陳水扁":{role:"中華民國總統",desc:"2000年當選總統，完成首次政黨輪替，象徵台灣民主政治成熟。",exam:"2000政黨輪替、民進黨首位總統。"}
+    };
+
+    // 3. 歷史事件資料庫（完整保留）
+    const historyDB = {
+        'pre': { title:"史前時代", desc:"從舊石器到金屬器時代的演進。", center:[23.5,121], zoom:7, events:[
+            {year:"舊石器", title:"長濱文化", desc:"台灣已知最早的人類文化。", cause:"冰河時期人類追逐獵物來到台灣。", figures:["長濱人"], subTimeline:[{t:"特徵",e:"打製石器、骨角器。"},{t:"生活",e:"採集、漁獵，已知用火。"}], impact:"開啟台灣人類活動史。", examFocus:["位於台東八仙洞。","打製石器，無農業，無陶器。"], textbook:"【康軒/南一/翰林 課文統整】\n長濱文化距今約五萬年至五千年前，遺址位於台東縣長濱鄉八仙洞。當時正值冰河時期，海平面下降，人類從大陸徒步遷移至台灣。長濱人居住在海蝕洞中，使用簡單的「打製石器」與骨角器，他們已經懂得「用火」，但還不會農耕與製作陶器，主要靠採集野果與獵捕動物維生。", mapPoints:[[23.398,121.486,"八仙洞 (長濱文化)"]]},
+            {year:"新石器早期", title:"大坌坑與南關里", desc:"農業與陶器的出現。", cause:"外來文化傳入或技術演進。", figures:["南島語族","南關里人"], subTimeline:[{t:"大坌坑",e:"粗繩紋陶。"},{t:"南關里",e:"最早稻米遺址。"}], impact:"人類開始定居生活。", examFocus:["南關里(南科)發現最早稻米。","大坌坑是南島語族祖先。"], textbook:"【康軒/南一/翰林 課文統整】\n約七千年前進入新石器時代早期，代表為「大坌坑文化」。此時期人類開始製作陶器（特色為粗繩紋陶）並磨製石器。最重要的變革是「農業」的出現，人類開始種植根莖類作物並定居。而在台南科學園區發現的「南關里遺址」，出土了台灣最早的稻米與小米化石，也發現了犬隻遺骸，證明當時已有成熟的農業聚落。", mapPoints:[[25.138,121.401,"大坌坑遺址"],[23.113,120.276,"南關里遺址 (南科)"]]},
+            {year:"新石器晚期", title:"卑南與圓山文化", desc:"社會組織複雜化。", cause:"農業成熟，人口增加。", figures:["卑南人"], subTimeline:[{t:"卑南",e:"石板棺、玉器。"},{t:"圓山",e:"貝塚。"}], impact:"嚴謹社會階級與宗教觀念。", examFocus:["卑南玉器vs圓山貝塚。","人獸形玉玦。"], textbook:"【康軒/南一/翰林 課文統整】\n新石器晚期，社會發展更为成熟。東部的「卑南文化」（台東）出土了大量排列整齊的石板棺，以及精美的玉器（如人獸形玉玦），顯示當時已有貧富差距、嚴謹的社會階級與宗教觀念。北部的「圓山文化」（台北）則以巨大的「貝塚」聞名，顯示當時人類除農耕外，也大量撈捕貝類食用。", mapPoints:[[22.791,121.121,"卑南遺址"],[25.071,121.529,"圓山遺址 (貝塚)"]]},
+            {year:"金屬器", title:"十三行文化", desc:"煉鐵與海外貿易。", cause:"航海技術發達。", figures:["凱達格蘭族"], subTimeline:[{t:"技術",e:"煉鐵爐。"},{t:"貿易",e:"瑪瑙、玻璃珠、銅錢。"}], impact:"納入東亞貿易圈。", examFocus:["人面陶罐。","凱達格蘭族祖先。"], textbook:"【康軒/南一/翰林 課文統整】\n距今約兩千年前，北台灣進入金屬器時代，代表為新北八里的「十三行文化」。這裡的人類已掌握「煉鐵」技術，並擁有精湛的製陶工藝，代表文物是「人面陶罐」。遺址中出土了中國的銅錢、瓷器以及外來的瑪瑙珠、玻璃珠，證明他們已有活躍的海外貿易行為。他們被認為是平埔族凱達格蘭族的祖先。", mapPoints:[[25.156,121.402,"十三行遺址"]]}
+        ]},
+        'dutch': { title:"荷西與鄭氏時期", desc:"大航海時代的競逐與漢人政權建立。", center:[23.2,120.5], zoom:7.5, events:[
+            {year:"1624", title:"荷蘭建熱蘭遮城", desc:"荷蘭東印度公司(VOC)建立貿易據點。", cause:"明朝拒絕荷蘭在澎湖通商，轉佔台灣。", figures:["揆一"], subTimeline:[{t:"據點",e:"熱蘭遮城(安平)、普羅民遮城(赤崁)。"},{t:"貿易",e:"轉口絲綢、瓷器；出口鹿皮、蔗糖。"}], impact:"台灣進入信史時代，成為國際貿易轉運站。", examFocus:["轉口貿易(中國絲->日本)。","王田(土地公有)。"], textbook:"【康軒/南一/翰林 課文統整】\n1624年，荷蘭東印度公司在明朝軍隊干涉下退出澎湖，轉而佔領大員（今台南安平）。他們興建「熱蘭遮城」作為行政中心，後又在赤崁興建「普羅民遮城」作為商業中心。荷蘭人將台灣作為東亞貿易的轉運站，把中國的絲綢、瓷器運往日本、歐洲，並大量出口台灣特產如鹿皮、蔗糖。", mapPoints:[[23.001,120.160,"熱蘭遮城 (安平古堡)"]]},
+            {year:"1626", title:"西班牙佔領北台", desc:"與荷蘭競爭東亞貿易。", cause:"不讓荷蘭獨佔台灣利益。", figures:[], subTimeline:[{t:"1626",e:"建聖薩爾瓦多城(基隆)。"},{t:"1628",e:"建聖多明哥城(淡水)。"}], impact:"傳播天主教，開採硫磺。", examFocus:["北西南荷。","聖薩爾瓦多城。"], textbook:"【康軒/南一/翰林 課文統整】\n西班牙人為了突破荷蘭在南台灣的貿易封鎖，於1626年佔領北台灣。他們在基隆和平島興建「聖薩爾瓦多城」，後又在淡水興建「聖多明哥城」。西班牙人除了發展貿易與開採硫磺外，更積極傳播天主教。但在1642年，西班牙因國力衰退加上各種因素，被荷蘭人驅逐出境。", mapPoints:[[25.159,121.775,"聖薩爾瓦多城 (基隆和平島)"],[25.176,121.432,"聖多明哥城 (淡水紅毛城)"]]},
+            {year:"1628", title:"濱田彌兵衛事件", desc:"日商與荷蘭官方的貿易衝突。", cause:"荷蘭向日商徵收貨物輸出稅。", figures:["濱田彌兵衛","奴易茲"], subTimeline:[{t:"衝突",e:"綁架荷蘭長官奴易茲。"}], impact:"荷蘭暫時關閉對日貿易。", examFocus:["台日荷三角關係。","徵稅糾紛。"], textbook:"【康軒/南一/翰林 課文統整】\n日本商人濱田彌兵衛因不滿荷蘭人徵收貨物輸出稅，且貿易受阻，率眾綁架了荷蘭駐台長官奴易茲。此事反映了當時台灣作為國際貿易據點，各國勢力（日本、荷蘭、漢人）在此激烈的商業利益角力。事件後，荷蘭曾短暫失去對日貿易權。", mapPoints:[[23.001,120.160,"熱蘭遮城"]]},
+            {year:"1636", title:"新港文書", desc:"用羅馬拼音書寫的原住民語言。", cause:"傳教士為了傳教與管理。", figures:["甘治士"], subTimeline:[{t:"創立",e:"新港語聖經。"},{t:"用途",e:"傳教、土地契約。"}], impact:"出現台灣最早的文字紀錄。", examFocus:["番仔契。","使用至清朝中葉。"], textbook:"【康軒/南一/翰林 課文統整】\n荷蘭傳教士甘治士等人為了深入原住民部落傳教，利用羅馬拼音拼寫西拉雅族語言，稱為「新港文」。這套文字不僅用於翻譯聖經，荷蘭人離開後，原住民仍繼續使用它與漢人簽訂土地契約，這些契約俗稱「番仔契」，使用時間長達一百多年。", mapPoints:[[23.045,120.250,"新港社 (台南新市)"]]},
+            {year:"1652", title:"郭懷一事件", desc:"荷治時期最大漢人抗爭。", cause:"荷蘭人課徵重稅(人頭稅)與士兵勒索。", figures:["郭懷一"], subTimeline:[{t:"爆發",e:"赤崁起義。"},{t:"鎮壓",e:"荷軍聯合原住民鎮壓。"}], impact:"荷人興建普羅民遮城加強防禦。", examFocus:["經濟壓榨。","以番制漢。"], textbook:"【康軒/南一/翰林 課文統整】\n荷蘭人對漢人課徵重稅（如人頭稅、結首制），引起漢人強烈不滿。1652年，農民領袖郭懷一率眾在赤崁起義。荷蘭人動員士兵，並採取「以番制漢」策略，利用原住民協助鎮壓，造成數千漢人被殺。事後荷蘭人加強戒備，興建磚石造的普羅民遮城（即今赤崁樓）以加強防禦。", mapPoints:[[23.064,120.250,"古戰場 (永康)"]]},
+            {year:"1661", title:"鄭成功攻台", desc:"建立首個漢人政權。", cause:"尋求反清復明基地。", figures:["鄭成功","揆一"], subTimeline:[{t:"戰略",e:"登陸鹿耳門，先攻普羅民遮城。"},{t:"圍城",e:"圍困熱蘭遮城9個月。"}], impact:"結束荷蘭統治，開啟明鄭時期。", examFocus:["鹿耳門水道。","改台灣為東都。"], textbook:"【康軒/南一/翰林 課文統整】\n1661年，鄭成功為了建立反清復明的基地，率軍進攻台灣。他在何斌的嚮導下，利用大潮通過鹿耳門水道，先攻下普羅民遮城，再包圍熱蘭遮城。經過九個月的圍城，荷蘭長官揆一彈盡援絕，終於在1662年投降，結束了荷蘭在台38年的統治。", mapPoints:[[23.041,120.125,"鹿耳門"]]},
+            {year:"1662", title:"鄭氏治台政策", desc:"軍政建設與文教推廣。", cause:"長期抗清需求。", figures:["陳永華","鄭經"], subTimeline:[{t:"政治",e:"設承天府。"},{t:"文教",e:"建孔廟(全台首學)。"},{t:"經濟",e:"軍屯(寓兵於農)。"}], impact:"漢人典章制度與文化紮根。", examFocus:["陳永華(鄭氏諸葛)。","地名(左營、新營)。"], textbook:"【康軒/南一/翰林 課文統整】\n鄭成功去世後，鄭經繼位，在陳永華（被譽為鄭氏諸葛）的輔佐下，積極建設台灣。他們在台南建立全台首座孔廟（全台首學），推動科舉制度以選拔人才。經濟上實施「軍屯」政策，派軍隊開墾荒地（留下了左營、新營、林鳳營等地名），解決糧食問題，並出口蔗糖、鹿皮到日本換取軍火。", mapPoints:[[22.990,120.203,"台南孔廟 (全台首學)"]]}
+        ]},
+        'qing_early': { title:"清領前期 (1684-1858)", desc:"消極治台、移民社會與水利開發。", center:[23.8,120.6], zoom:7, events:[
+            {year:"1684", title:"渡台禁令", desc:"限制漢人移民台灣。", cause:"施琅攻台後，清廷防台灣再成反清基地。", figures:["施琅","康熙皇帝"], subTimeline:[{t:"規定",e:"需申請證照、禁攜家眷、禁粵人。"}], impact:"造成台灣男女比例失衡，羅漢腳多。", examFocus:["社會問題根源。","羅漢腳。"], textbook:"【康軒/南一/翰林 課文統整】\n1683年施琅攻下台灣，1684年清廷設台灣府。為了防止台灣再次成為叛亂基地，頒布了嚴格的「渡台禁令」。規定移民需申請照單，且嚴格禁止攜帶家眷（後來才逐步放寬）。這導致台灣社會長期男多女少，充滿單身漢（羅漢腳），社會治安敗壞，械鬥頻繁。", mapPoints:[[22.999,120.227,"台灣府城 (台南)"]]},
+            {year:"1700s", title:"一府二鹿三艋舺", desc:"三大港市的興起。", cause:"西部沿海河港貿易繁榮。", figures:[], subTimeline:[{t:"發展",e:"由南向北開發。"},{t:"組織",e:"郊商(行會)。"}], impact:"形成台灣早期的都市體系。", examFocus:["由南向北。","郊商的功能。"], textbook:"【康軒/南一/翰林 課文統整】\n清代台灣西部沿海港口因與中國大陸對渡貿易而興起，形成「一府（台南）、二鹿（鹿港）、三艋舺（萬華）」的繁榮景象。這反映了台灣早期的開發順序是由南向北。商人為了保障利益與處理公共事務，組成了類似公會的組織，稱為「郊」。", mapPoints:[[22.99,120.20,"一府(台南)"],[24.05,120.43,"二鹿(鹿港)"],[25.03,121.49,"三艋舺(萬華)"]]},
+            {year:"1719", title:"八堡圳完工", desc:"清代最大水利工程。", cause:"彰化平原開發需水灌溉。", figures:["施世榜"], subTimeline:[{t:"取水",e:"引濁水溪。"},{t:"傳說",e:"林先生指導。"}], impact:"彰化成為台灣米倉。", examFocus:["施世榜(私人興建)。","跑水節。"], textbook:"【康軒/南一/翰林 課文統整】\n清領時期，為了開墾農田，漢人興建了許多水利設施。施世榜在彰化集資興建的「八堡圳」，引濁水溪灌溉，是當時全台最大的水利工程。相傳工程遇困難時，獲一位「林先生」指導才成功。此圳使彰化平原成為台灣重要的米倉。", mapPoints:[[23.805,120.615,"八堡圳取水口"]]},
+            {year:"1721", title:"朱一貴事件", desc:"清代最早的大規模民變。", cause:"鳳山知縣苛政，官逼民反。", figures:["朱一貴"], subTimeline:[{t:"起事",e:"高雄內門養鴨起義。"},{t:"稱號",e:"中興王。"}], impact:"清廷增設巡視台灣監察御史。", examFocus:["鴨母王。","清代三大民變之首。"], textbook:"【康軒/南一/翰林 課文統整】\n朱一貴人稱「鴨母王」，因不滿官員苛政，在高雄內門發動起義，攻佔台灣府城，自稱「中興王」。這是清代最早的大規模民變，初期閩粵合作，但後來因族群內鬨而失敗。", mapPoints:[[22.909,120.457,"內門 (起事地)"]]},
+            {year:"1740", title:"瑠公圳", desc:"開發台北盆地的重要水利。", cause:"郭錫瑠欲開發台北農田。", figures:["郭錫瑠"], subTimeline:[{t:"取水",e:"引新店溪水。"}], impact:"促進台北盆地農業發展。", examFocus:["郭錫瑠。","與原住民衝突。"], textbook:"【康軒/南一/翰林 課文統整】\n郭錫瑠為了灌溉台北盆地的農田，變賣家產興建「瑠公圳」，從新店溪上游引水。工程期間常遭泰雅族攻擊，歷經二十多年努力終於完成，極大促進了台北地區的農業發展與漢人聚落形成。", mapPoints:[[25.021,121.534,"瑠公圳原址"]]},
+            {year:"1786", title:"林爽文事件", desc:"清代規模最大的民變。", cause:"台灣知府取締天地會過嚴。", figures:["林爽文","福康安"], subTimeline:[{t:"範圍",e:"南北響應。"},{t:"平定",e:"乾隆派福康安。"}], impact:"諸羅縣改名為嘉義縣。", examFocus:["天地會。","諸羅改嘉義。","福康安紀功碑。"], textbook:"【康軒/南一/翰林 課文統整】\n林爽文是天地會領袖，因官方取締過嚴而起義，勢力遍及全台，是清代規模最大的民變。乾隆皇帝派陝甘總督福康安來台平定。事後，乾隆為了嘉獎諸羅縣民協助清軍，將「諸羅」改名為「嘉義」，意指嘉許義行。", mapPoints:[[24.103,120.686,"大里 (林爽文根據地)"]]},
+            {year:"1837", title:"曹公圳", desc:"官方主導興建的水利。", cause:"鳳山地區乾旱。", figures:["曹謹"], subTimeline:[{t:"興建",e:"鳳山知縣曹謹。"}], impact:"改善高雄平原灌溉。", examFocus:["唯一官方主導。","與八堡/瑠公(民間)區別。"], textbook:"【康軒/南一/翰林 課文統整】\n不同於八堡圳與瑠公圳是民間集資興建，高雄的「曹公圳」是由鳳山知縣曹謹主導興建的官方水利工程。他引高屏溪水灌溉，解決了當地長期的缺水問題，使鳳山地區農產大增。", mapPoints:[[22.627,120.350,"曹公圳"]]},
+            {year:"1862", title:"戴潮春事件", desc:"清代歷時最久的民變。", cause:"地方團練勢力過大。", figures:["戴潮春"], subTimeline:[{t:"歷時",e:"三年多。"}], impact:"消耗清廷國力，霧峰林家協助平亂。", examFocus:["發生在晚清。","影響中部。"], textbook:"【康軒/南一/翰林 課文統整】\n戴潮春事件發生於晚清（開港通商後），歷時三年多，是清代歷時最久的民變。起因是地方團練與官府不合，影響範圍主要在中部地區。最後由霧峰林家等地方仕紳協助清軍平定。", mapPoints:[[24.147,120.673,"台中"]]}
+        ]},
+        'qing_late': { title:"清領後期 (1860-1895)", desc:"開港通商與積極建設。", center:[24.5,121], zoom:7.5, events:[
+            {year:"1860", title:"開港通商", desc:"台灣經濟重心北移。", cause:"英法聯軍戰敗，天津/北京條約。", figures:["馬偕"], subTimeline:[{t:"開放",e:"淡水、基隆、安平、打狗。"},{t:"出口",e:"茶(北)、樟腦(中北)、糖(南)。"}], impact:"台灣納入世界經濟體系，北部繁榮。", examFocus:["茶與樟腦使重心北移。","洋行設立。"], textbook:"【康軒/南一/翰林 課文統整】\n1860年代，清廷因英法聯軍戰敗，被迫開放台灣淡水、基隆、安平、打狗四個港口。外商紛紛設立洋行，大量出口茶葉、樟腦與蔗糖（統稱台灣三寶）。由於高價值的茶與樟腦產地主要在北部，促使台灣經濟重心由南向北移動，後來清廷更增設了台北府。", mapPoints:[[25.172,121.442,"淡水港"],[22.617,120.270,"打狗港"]]},
+            {year:"1867", title:"羅發號事件", desc:"美軍與原住民的外交衝突。", cause:"美商船羅發號觸礁，船員遭排灣族殺害。", figures:["李仙得","卓杞篤"], subTimeline:[{t:"談判",e:"李仙得見卓杞篤。"},{t:"結果",e:"南岬之盟。"}], impact:"首個原住民與外國簽訂的條約。", examFocus:["南岬之盟。","李仙得角色。"], textbook:"【康軒/南一/翰林 課文統整】\n美商羅發號在恆春外海觸礁，船員誤闖原住民領地遭殺害。美國駐廈門領事李仙得來台處理，深入部落與瑯嶠十八社大頭目卓杞篤談判，最終簽訂「南岬之盟」，原住民承諾保護遇難船員。這是台灣原住民與外國勢力簽訂的第一個國際協議。", mapPoints:[[21.94,120.78,"恆春(南岬)"]]},
+            {year:"1874", title:"牡丹社事件", desc:"日本藉口出兵台灣。", cause:"琉球漁民遇難事件。", figures:["沈葆楨"], subTimeline:[{t:"日軍",e:"攻打牡丹社。"},{t:"清廷",e:"派沈葆楨來台。"}], impact:"清廷治台轉趨積極，開山撫番。", examFocus:["廢除渡台禁令。","億載金城。"], textbook:"【康軒/南一/翰林 課文統整】\n日本藉口琉球漁民被原住民殺害，出兵攻打屏東牡丹社。清廷驚覺台灣地位重要，派欽差大臣沈葆楨來台。他採取了一系列積極措施：廢除渡台禁令以充實人口、推動開山撫番（開闢八通關等古道）、增設恆春縣，並興建億載金城（配備西式大砲）加強海防。", mapPoints:[[22.115,120.762,"牡丹社 (石門古戰場)"],[22.986,120.158,"億載金城"],[23.510,121.050,"八通關古道"]]},
+            {year:"1884", title:"中法戰爭", desc:"法軍攻台，台灣建省契機。", cause:"越南主權問題。", figures:["劉銘傳","孤拔"], subTimeline:[{t:"戰況",e:"基隆、淡水激戰。"},{t:"戰略",e:"劉銘傳棄基保滬。"}], impact:"清廷宣布台灣建省。", examFocus:["孤拔死於澎湖。","劉銘傳守淡水。"], textbook:"【康軒/南一/翰林 課文統整】\n中法戰爭爆發，法軍將領孤拔率軍攻打基隆與淡水。劉銘傳採取「棄基保滬」策略，將兵力集中防守淡水，成功擊退法軍。法軍轉而攻佔澎湖，孤拔後來病死於澎湖。戰後清廷體認台灣海防極為重要，於1885年宣佈台灣建省，劉銘傳任首任巡撫。", mapPoints:[[25.176,121.432,"淡水戰場"],[23.565,119.615,"澎湖(孤拔墓)"]]},
+            {year:"1885", title:"劉銘傳新政", desc:"台灣現代化建設的開端。", cause:"建省後加強建設。", figures:["劉銘傳"], subTimeline:[{t:"交通",e:"鐵路(基隆-新竹)。"},{t:"通訊",e:"電報、郵政。"},{t:"文教",e:"西學堂。"}], impact:"奠定台灣現代化基礎。", examFocus:["第一條鐵路。","邵友濂後續停辦部分。"], textbook:"【康軒/南一/翰林 課文統整】\n劉銘傳擔任首任巡撫期間，積極推動洋務運動。他興建了台灣第一條鐵路（基隆至新竹，過獅球嶺隧道），架設連接福州的電纜，設立郵政局，並購買輪船行駛台灣與大陸之間。此外，也開辦西學堂培養外語人才，奠定了台灣現代化的基礎。但因經費巨大，後任巡撫邵友濂停止了部分建設。", mapPoints:[[25.131,121.739,"基隆車站"],[24.801,120.971,"新竹車站"]]}
+        ]},
+        'jp': { title:"日治時期 (1895-1945)", desc:"殖民統治與現代化建設。", center:[24,120.8], zoom:7.5, events:[
+            {year:"1895", title:"台灣民主國與乙未戰爭", desc:"武裝抗日的開始。", cause:"馬關條約割讓台灣。", figures:["唐景崧","丘逢甲"], subTimeline:[{t:"成立",e:"推唐景崧為總統。"},{t:"結果",e:"日軍登陸，唐逃亡。"}], impact:"開啟長達20年的武裝抗日。", examFocus:["藍地黃虎旗。","1895年。"], textbook:"【康軒/南一/翰林 課文統整】\n1895年馬關條約割讓台灣，台灣仕紳不願接受日本統治，成立「台灣民主國」，推舉巡撫唐景崧為總統，制定藍地黃虎旗，年號永清。但日軍在澳底登陸後，唐景崧旋即潛逃，台灣民主國瓦解。隨後各地爆發激烈的乙未戰爭，客家義軍（如姜紹祖、吳湯興）抵抗尤為激烈。", mapPoints:[[25.042,121.515,"台北城"]]},
+            {year:"1898", title:"後藤新平施政", desc:"奠定日治統治基礎。", cause:"兒玉源太郎總督授權。", figures:["後藤新平"], subTimeline:[{t:"三策",e:"土地、戶口、舊慣調查。"},{t:"衛生",e:"建設下水道、自來水。"}], impact:"確立總督府財政與治安基礎。", examFocus:["生物學原理。","六三法(總督立法權)。"], textbook:"【康軒/南一/翰林 課文統整】\n民政長官後藤新平主張「生物學原理」治台。他推動三大調查：土地調查（確立產權、增加稅收）、戶口普查（掌控人口、警察制度）、舊慣調查（了解風俗）。並依據「六三法」，使總督擁有立法權，實施特別統治。此外，他也致力於改善衛生環境，推動自來水與下水道工程。", mapPoints:[[25.04,121.51,"台灣總督府"]]},
+            {year:"1908", title:"縱貫鐵路全通", desc:"西部交通大動脈。", cause:"經濟掠奪與開發需求。", figures:[], subTimeline:[{t:"路線",e:"基隆至高雄。"},{t:"通車",e:"台中公園舉行典禮。"}], impact:"打破南北隔閡，促進產業發展。", examFocus:["基隆到高雄。","1908年。"], textbook:"【康軒/南一/翰林 課文統整】\n1908年，縱貫鐵路全線通車，連結了基隆港與高雄港。這不僅方便日本運送台灣資源（如米、糖），也促進了沿線城市的產業發展，打破了台灣南北長期的隔閡，加速了人口流動與現代化。", mapPoints:[[24.145,120.684,"台中公園 (通車典禮)"]]},
+            {year:"1915", title:"噍吧哖事件", desc:"漢人最後一次大規模武裝抗日。", cause:"日本高壓統治。", figures:["余清芳"], subTimeline:[{t:"組織",e:"西來庵(宗教掩護)。"},{t:"結果",e:"慘遭鎮壓。"}], impact:"台人抗爭轉向政治社會運動。", examFocus:["西來庵事件。","武裝轉非武裝的分水嶺。"], textbook:"【康軒/南一/翰林 課文統整】\n余清芳利用台南西來庵的宗教信仰，以此動員民眾抗日，在噍吧哖（今玉井）爆發激烈衝突。這是漢人最後一次大規模武裝抗日，死傷慘重。此後，台灣知識分子體認到武力對抗不可行，轉而尋求政治與社會運動的體制內抗爭。", mapPoints:[[23.12,120.46,"玉井 (噍吧哖)"]]},
+            {year:"1920s", title:"文化抗日與議會請願", desc:"非武裝政治社會運動。", cause:"民族自決思潮、大正民主。", figures:["林獻堂","蔣渭水"], subTimeline:[{t:"政治",e:"議會設置請願運動(15次)。"},{t:"文化",e:"台灣文化協會。"},{t:"政黨",e:"台灣民眾黨。"}], impact:"啟蒙台灣民智。", examFocus:["治警事件。","台灣民報。"], textbook:"【康軒/南一/翰林 課文統整】\n受民族自決思潮影響，林獻堂領導「台灣議會設置請願運動」，向日本帝國議會請願達15次。蔣渭水等人成立「台灣文化協會」，透過讀報社、演講會啟蒙民智，雖遭「治警事件」打壓仍不懈。後來更成立台灣第一個政黨「台灣民眾黨」。", mapPoints:[[24.06,120.69,"霧峰林家"],[25.055,121.514,"大安醫院舊址"]]},
+            {year:"1922", title:"蓬萊米與農業發展", desc:"農業台灣，工業日本。", cause:"日本國內缺米。", figures:["磯永吉","八田與一"], subTimeline:[{t:"品種",e:"磯永吉培育蓬萊米。"},{t:"水利",e:"八田與一建嘉南大圳。"}], impact:"台灣成為日本的糧倉。", examFocus:["米糖經濟。","嘉南大圳完工(1930)。"], textbook:"【康軒/南一/翰林 課文統整】\n磯永吉在台大農場培育出適合台灣種植的日本種稻米，命名為「蓬萊米」。配合八田與一興建的「嘉南大圳」與烏山頭水庫（1930年完工），實施三年輪作制，使台灣稻米產量大增，大量外銷日本，確立了「農業台灣、工業日本」的殖民經濟政策。", mapPoints:[[25.017,121.538,"台大磯小屋"],[23.19,120.40,"烏山頭水庫"]]},
+            {year:"1930", title:"霧社事件", desc:"原住民最大規模抗日。", cause:"長期勞役剝削與文化壓迫。", figures:["莫那魯道"], subTimeline:[{t:"爆發",e:"霧社公學校運動會。"},{t:"鎮壓",e:"日軍投毒氣彈。"}], impact:"日本重新檢討理蕃政策。", examFocus:["賽德克族。","電影《賽德克·巴萊》。"], textbook:"【康軒/南一/翰林 課文統整】\n賽德克族馬赫坡頭目莫那魯道，因不滿日本長期強迫原住民勞役、並壓迫其傳統文化（如紋面），趁霧社公學校舉行運動會時起義殺死日本人。日軍調動飛機大砲甚至違反國際公約投擲毒氣彈鎮壓。此事震驚國際，迫使日本總督府重新檢討理蕃政策。", mapPoints:[[24.02,121.13,"霧社"]]},
+            {year:"1937", title:"皇民化運動", desc:"戰爭時期的同化政策。", cause:"中日戰爭爆發。", figures:["小林躋造"], subTimeline:[{t:"生活",e:"說日語、改姓名。"},{t:"宗教",e:"拜神社、毀神像。"},{t:"軍事",e:"志願兵、高砂義勇隊。"}], impact:"試圖消除漢人與原住民文化。", examFocus:["國語家庭。","南進基地化。"], textbook:"【康軒/南一/翰林 課文統整】\n1937年中日戰爭爆發，日本為了動員台灣人參戰，推行皇民化運動。內容包括強迫台灣人說日語（獎勵成為國語家庭）、改日本姓名、穿和服、參拜神社。後期更實施徵兵制，徵召台灣人（含原住民高砂義勇隊）上戰場。此時政策口號轉為「工業化、南進基地化」。", mapPoints:[[25.078,121.526,"台灣神宮舊址 (圓山飯店)"]]}
+        ]},
+        'roc': { title:"戰後民國時期 (1945-現今)", desc:"從威權統治到民主開放。", center:[24,121], zoom:7.5, events:[
+            {year:"1947", title:"二二八事件", desc:"戰後最慘痛的族群衝突。", cause:"查緝私菸意外、長官公署施政不當。", figures:["陳儀"], subTimeline:[{t:"爆發",e:"2/27天馬茶房，2/28抗爭。"},{t:"清鄉",e:"軍隊登陸鎮壓。"}], impact:"造成族群隔閡，開啟白色恐怖。", examFocus:["導火線(緝菸)。","行政長官公署。"], textbook:"【康軒/南一/翰林 課文統整】\n1947年2月27日，查緝員在台北天馬茶房查緝私菸誤傷民眾，引發衝突，隔日民眾包圍行政長官公署遭槍擊，抗爭蔓延全台。由於陳儀政府長期施政不當、官員貪污、物價飛漲（米荒），導致民怨爆發。隨後國軍登陸進行鎮壓與清鄉，造成大量菁英與民眾傷亡，是戰後影響最深遠的悲劇。", mapPoints:[[25.053,121.512,"天馬茶房舊址"]]},
+            {year:"1949", title:"幣制改革與政府遷台", desc:"穩定經濟與政權轉移。", cause:"惡性通貨膨脹、國共內戰失利。", figures:["陳誠"], subTimeline:[{t:"貨幣",e:"四萬舊台幣換一元新台幣。"},{t:"戒嚴",e:"宣佈台灣省戒嚴令。"}], impact:"穩定物價，進入動員戡亂時期。", examFocus:["四萬換一元。","戒嚴令(1949-1987)。"], textbook:"【康軒/南一/翰林 課文統整】\n戰後初期因國共內戰與經濟失調，台灣通貨膨脹嚴重。省主席陳誠於1949年6月實施幣制改革，發行新台幣，規定以四萬圓舊台幣兌換一元新台幣，並有黃金儲備支持，成功穩定物價。同年底，中華民國政府遷台，並宣佈戒嚴，進入動員戡亂時期。", mapPoints:[[25.03,121.51,"台灣銀行總行"]]},
+            {year:"1950s", title:"土地改革", desc:"和平的土地重分配。", cause:"改善農民生活，防共產滲透。", figures:["陳誠"], subTimeline:[{t:"步驟1",e:"三七五減租(1949)。"},{t:"步驟2",e:"公地放領(1951)。"},{t:"步驟3",e:"耕者有其田(1953)。"}], impact:"佃農變自耕農，地主資本轉工業。", examFocus:["順序(減租->公地->耕者)。","股票債券補償地主。"], textbook:"【康軒/南一/翰林 課文統整】\n政府為了穩定農村，在美援支持下依序實施「三七五減租」（限制地租上限）、「公地放領」（政府賣公地給農民）、「耕者有其田」（徵收地主超額土地轉賣佃農）。這不僅讓佃農擁有土地，提高生產意願，政府也以公營事業股票補償地主，將地主的資本引導至工商業，奠定了經濟發展的基礎。", mapPoints:[[24.061,120.699,"霧峰 (議會舊址)"]]},
+            {year:"1960s", title:"出口導向工業化", desc:"經濟起飛。", cause:"美援停止，需賺取外匯。", figures:[], subTimeline:[{t:"1966",e:"高雄加工出口區。"},{t:"1968",e:"九年義務教育。"}], impact:"轉型工業社會，亞洲四小龍。", examFocus:["加工出口區。","九年國教。"], textbook:"【康軒/南一/翰林 課文統整】\n1960年代，政府採取「出口導向」策略。1966年在高雄前鎮設立世界第一個「加工出口區」，利用廉價勞力發展紡織、電子組裝等外銷產業。為了配合產業升級所需的人力，1968年實施九年國民義務教育。此時期台灣經濟飛速成長，躍升為亞洲四小龍之一。", mapPoints:[[22.58,120.31,"前鎮加工出口區"]]},
+            {year:"1970s", title:"十大建設與外交挫敗", desc:"逆境中的基礎建設。", cause:"退出聯合國、石油危機。", figures:["蔣經國"], subTimeline:[{t:"外交",e:"1971退出聯合國，1979斷交。"},{t:"建設",e:"中山高、機場、核電、中鋼。"}], impact:"重工業化，度過經濟危機。", examFocus:["台灣關係法。","重工業發展。"], textbook:"【康軒/南一/翰林 課文統整】\n1970年代台灣面臨外交寒冬（1971退出聯合國、1979台美斷交）與石油危機。蔣經國推動「十大建設」，包含南北高速公路（中山高）、桃園機場、核能電廠、中國鋼鐵、造船廠等。成功將台灣經濟由輕工業轉型為重工業（石化、鋼鐵），並以此凝聚民心。", mapPoints:[[25.078,121.233,"桃園國際機場"],[22.585,120.311,"中鋼 (高雄)"]]},
+            {year:"1979", title:"美麗島事件", desc:"民主運動的轉捩點。", cause:"爭取人權與民主。", figures:["施明德","呂秀蓮"], subTimeline:[{t:"遊行",e:"高雄世界人權日遊行。"},{t:"審判",e:"軍法大審。"}], impact:"喚起民眾政治意識，加速民主化。", examFocus:["高雄。","黨外人士。"], textbook:"【康軒/南一/翰林 課文統整】\n1979年12月10日，《美麗島》雜誌社在高雄舉辦世界人權日遊行，與軍警爆發嚴重衝突。隨後政府逮捕施明德、呂秀蓮、陳菊等黨外人士並進行軍法大審。審判過程的公開反而引起社會關注，激發了更多人投入民主運動，是台灣民主化的重要分水嶺。", mapPoints:[[22.631,120.302,"高雄 (美麗島捷運站)"]]},
+            {year:"1980s", title:"高科技與解嚴", desc:"政治經濟雙重轉型。", cause:"產業升級與民意壓力。", figures:["蔣經國"], subTimeline:[{t:"經濟",e:"新竹科學園區(1980)。"},{t:"政治",e:"宣佈解嚴(1987)。"}], impact:"成為科技矽島，邁向自由化。", examFocus:["竹科(半導體)。","1987解嚴。"], textbook:"【康軒/南一/翰林 課文統整】\n經濟上，政府於1980年設立新竹科學工業園區，引進高科技人才，發展半導體、電腦產業，使台灣成為全球知名的「矽島」。政治上，1987年蔣經國總統宣佈解除長達38年的戒嚴令，開放黨禁與報禁，開放赴大陸探親，台灣社會釋放出巨大的活力。", mapPoints:[[24.78,121.00,"新竹科學園區"]]},
+            {year:"1990s", title:"民主深化", desc:"憲政改革與總統直選。", cause:"野百合學運、社會要求。", figures:["李登輝"], subTimeline:[{t:"修憲",e:"廢止動員戡亂。"},{t:"直選",e:"1996首次總統直選。"}], impact:"台灣成為完全民主國家。", examFocus:["首次直選(李登輝)。","野百合學運。"], textbook:"【康軒/南一/翰林 課文統整】\n1990年代，李登輝總統回應野百合學運訴求，召開國是會議，終止動員戡亂時期，廢除萬年國會。1996年舉行首次總統與副總統直接民選，由李登輝當選。這標誌著台灣完成了寧靜革命，成為華人世界第一個完全民主的國家。", mapPoints:[[25.04,121.51,"總統府"]]},
+            {year:"2000", title:"政黨輪替", desc:"民主政治的成熟。", cause:"選舉結果。", figures:["陳水扁"], subTimeline:[{t:"結果",e:"民進黨陳水扁當選。"}], impact:"結束國民黨50年執政。", examFocus:["和平轉移政權。"], textbook:"【康軒/南一/翰林 課文統整】\n2000年總統大選，由民進黨候選人陳水扁當選，結束了國民黨在台長達50年的執政，實現了中華民國歷史上首次的政黨輪替，政權和平轉移，顯示台灣民主政治已趨於成熟。", mapPoints:[[25.04,121.51,"台北"]]}
+        ]}
+    };
+
+    // 4. 版面 + 資料整合後的程式邏輯
+
+    // 切換頁面：配合版面配置的 <ul class="nav"><a data-page="...">
+    function switchPage(id) {
+        // 側欄 active 標記
+        document.querySelectorAll('.sidebar .nav a').forEach(a => {
+            if (a.dataset.page === id) {
+                a.classList.add('active');
+            } else {
+                a.classList.remove('active');
+            }
+        });
+
+        // 顯示對應 page
+        document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+        const pg = document.getElementById(id);
+        if (pg) {
+            pg.classList.add('active');
+        }
+
+        // 若該頁面有地圖資料，初始化/更新地圖
+        if (historyDB[id]) {
+            setTimeout(() => initMap(id), 200);
+        }
+    }
+
+    function initMap(key) {
+        const d = historyDB[key];
+        const containerId = `map-${key}`;
+        const container = document.getElementById(containerId);
+        
+        if (!d || !container) return;
+
+        // 檢查是否已經初始化過
+        if (!container.mapInstance) {
+            const map = L.map(containerId).setView(d.center, d.zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(map);
+
+            d.events.forEach(e => {
+                if (Array.isArray(e.mapPoints)) {
+                    e.mapPoints.forEach(p => {
+                        L.marker([p[0], p[1]]).addTo(map)
+                            .bindPopup(`<b style="font-size:1.1rem">${p[2]}</b><br>${e.year} ${e.title}`);
+                    });
+                }
+            });
+            container.mapInstance = map;
+        } else {
+            // 若已初始化，重新計算大小以免地圖破圖
+            container.mapInstance.invalidateSize();
+        }
+    }
+
+    function render() {
+        // 渲染對照表
+        const body = document.getElementById('comparison-body');
+        comparisonData.forEach(r => {
+            body.innerHTML += `<tr><td class="col-year">${r.y}</td><td>${r.w}</td><td>${r.t}</td></tr>`;
+        });
+        
+        let masterTimelineHtml = '';
+
+        // 渲染各時代頁面
+        Object.keys(historyDB).forEach(k => {
+            const d = historyDB[k];
+            
+            // Master Timeline Accumulation
+            masterTimelineHtml += `<div class="mt-group-title">${d.title}</div>`;
+            
+            let html = `
+                <div class="section-title">${d.title}</div>
+                <p class="section-desc">${d.desc}</p>
+                <div id="map-${k}" class="map-wrapper"></div>
+                <div class="master-timeline">
+            `;
+
+            d.events.forEach((e, i) => {
+                const card = `
+                    <div class="mt-event" onclick="openModal('${k}', ${i})">
+                        <div class="mt-dot"></div>
+                        <span class="mt-year">${e.year}</span>
+                        <span class="mt-title">${e.title}</span>
+                        <span class="mt-desc">${e.desc}</span>
+                    </div>
+                `;
+                html += card;
+                masterTimelineHtml += card;
+            });
+
+            html += '</div>';
+            const pageDiv = document.getElementById(k);
+            if (pageDiv) {
+                pageDiv.innerHTML = html;
+            }
+        });
+
+        document.getElementById('master-timeline').innerHTML = masterTimelineHtml;
+    }
+
+    function openModal(k, i) {
+        const group = historyDB[k];
+        if (!group || !group.events || !group.events[i]) return;
+
+        currentEvent = group.events[i];
+
+        const subTimeline = Array.isArray(currentEvent.subTimeline) ? currentEvent.subTimeline : [];
+        const figures = Array.isArray(currentEvent.figures) ? currentEvent.figures : [];
+        const examFocus = Array.isArray(currentEvent.examFocus) ? currentEvent.examFocus : [];
+
+        document.getElementById('m-title').innerText = currentEvent.year + ' ' + currentEvent.title;
+        document.getElementById('m-desc').innerText = currentEvent.desc || '';
+        document.getElementById('m-cause').innerText = currentEvent.cause || '詳見教科書內容';
+        document.getElementById('m-impact').innerText = currentEvent.impact || '詳見教科書內容';
+
+        document.getElementById('m-subtimeline').innerHTML = subTimeline.length 
+            ? subTimeline.map(t => `<li><span class="st-time">${t.t}</span>${t.e}</li>`).join('')
+            : '<li>無詳細時序</li>';
+
+        document.getElementById('m-figures').innerHTML = figures.length
+            ? figures.map(f => `<span class="figure-chip" onclick="openPerson('${f}')">${f}</span>`).join('')
+            : '<span style="color:#999;">無特定關聯人物</span>';
+
+        document.getElementById('m-exam-list').innerHTML = examFocus.length
+            ? examFocus.map(e => `<li>${e}</li>`).join('')
+            : '<li>留意基本年代與事件順序。</li>';
+
+        document.getElementById('event-modal').style.display = 'flex';
+    }
+
+    function closeEventModal() {
+        document.getElementById('event-modal').style.display = 'none';
+    }
+
+    function openTextbookModal() {
+        if (!currentEvent) return;
+        document.getElementById('tb-title').innerText = `📖 課文統整：${currentEvent.title}`;
+        document.getElementById('tb-content').innerText = currentEvent.textbook || '本條目尚無詳細課文統整資料。';
+        document.getElementById('textbook-modal').style.display = 'flex';
+    }
+
+    function closeTextbookModal() {
+        document.getElementById('textbook-modal').style.display = 'none';
+    }
+
+    function openPerson(name) {
+        const p = personDB[name];
+        if (p) {
+            document.getElementById('p-name').innerText = name;
+            document.getElementById('p-role').innerText = p.role;
+            document.getElementById('p-desc').innerText = p.desc;
+            document.getElementById('p-exam').innerText = p.exam;
+            document.getElementById('person-modal').style.display = 'block';
+        } else {
+            alert('人物資料庫擴充中...');
+        }
+    }
+
+    function closePersonModal() {
+        document.getElementById('person-modal').style.display = 'none';
+    }
+
+    // 初始化：先 render，再綁定側欄事件
+    window.onload = function() {
+        render();
+
+        // 側欄選單點擊 => 切換頁面
+        document.querySelectorAll('.sidebar .nav a').forEach(a => {
+            a.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = this.dataset.page;
+                if (target) {
+                    switchPage(target);
+                }
+            });
+        });
+    };
+</script>
+</body>
+</html>
